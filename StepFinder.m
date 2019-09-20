@@ -24,17 +24,15 @@ classdef StepFinder
         x_data % data-vector of the indipendend variable
         y_data % data-vector of the dependend variable
         y_conv % smoothed y_data
-        sigma % sigma of the gaussian kernel used for data smoothing
-        w % half window_width
-        N % number of data-points within x/y-data
+        theta = []% vector of RSS values
+        window_width % width of the moving window
+        step_refinement
+        numpnts % number of data-points within x/y-data
         smoothing_sigma % standard deviation of gaussion smoothing 
         smoothing_window_width % window withd of gaussian smoothing
+        step_results
     end % properties
-    
-    properties(Access = private)
-        smoothing_metadata = struct(); % meta-data around data smoothing
-    end % private properties
-    
+       
     methods
         function obj = StepFinder(varargin)
             %STEPFINDER Construct an instance of this class
@@ -44,21 +42,19 @@ classdef StepFinder
             
             addRequired(p, 'x_data');
             addRequired(p, 'y_data');
-            addParameter(p, 'window_width', 31);
-            addParameter(p, 'sigma', 2);
+            addParameter(p, 'window_width', 30);
+            addParameter(p, 'step_refinement', 1);
             addParameter(p, 'smoothing_sigma', 5);
-            addParameter(p, 'smoothing_window_width',51);
+            addParameter(p, 'smoothing_window_width',50);
             
             parse(p, varargin{:});
             
             x_data = p.Results.x_data;
             y_data = p.Results.y_data;
             window_width = p.Results.window_width;
-            sigma = p.Results.sigma;
+            step_refinement = p.Results.step_refinement;
             smoothing_sigma = p.Results.smoothing_sigma;
             smoothing_window_width = p.Results.smoothing_window_width;
-            
-            % call to superclass constructor
             
             % validation of input parameter
             if isempty(x_data)  || isempty(y_data)
@@ -79,6 +75,10 @@ classdef StepFinder
                     end
                 end
             end
+            if mod(window_width, 2)
+                ME = MException('StepFinder:invalidInput', 'input for "window_width" must be even');
+                throw(ME);
+            end
             
             % make sure thad x/y_data are column vectors
             [x_data, y_data] = prepareCurveData(x_data, y_data);
@@ -86,49 +86,362 @@ classdef StepFinder
             % construct StepFinder-object
             obj.x_data = x_data;
             obj.y_data = y_data;
-            obj.sigma = sigma;
             obj.smoothing_sigma = smoothing_sigma;
             obj.smoothing_window_width = smoothing_window_width;
-            obj.w = round(window_width/2);
+            obj.window_width = window_width;
+            obj.step_refinement = step_refinement;
+            obj.numpnts = length(x_data);
             
         end
         
         function obj = SmoothData(obj, varargin)
             % SMOOTHDATA data smoothing by convolution of "y_data" with
-            % a gaussian kernel via the builtin function "smoothdata"
+            % a gaussian kernel 
             
             % input parser
             p = inputParser;
             
             addRequired(p, 'obj');
-            addOptional(p, 'factor', []);
+            addOptional(p, 'sigma', []);
+            addOptional(p, 'width', []);
             
             parse(p, obj, varargin{:});
             
             obj = p.Results.obj;
-            factor = p.Results.factor;
+            sigma = p.Results.sigma;
+            width = p.Results.width;
             
-            % input validation
-            if isempty(factor)
-                s = obj.smoothing_sigma;
-            else
-                s = factor;
+            % check input parameters
+            if ~isempty(sigma)
+                obj.smoothing_sigma = sigma;
+            end
+            if ~isempty(width)
+                obj.smooting_window_width = width;
             end
             
             % smooth data
-            [kernel, gvec, vec] = gaussian_kernel(obj.smoothing_window_width, s);
+            kernel = StepFinder.gaussian_kernel(obj.window_width, obj.smoothing_sigma);
             obj.y_conv = conv(obj.y_data, kernel, 'same');
-            
-            % store smoothing metadata
-            obj.smoothing_metadata.kernel = kernel;
-            obj.smoothing_metadata.x_gauss = vec;
-            obj.smoothing_metadata.y_gauss = gvec;
             
         end % SmoothData
         
-        function obj = PlotData(obj)
-            % yet to be implemented
-        end % PlotData
+        function obj = StepSearch(obj, varargin)
+            % STEPSEARCH find steps wihtin the given data using the
+            % MSF-Algorithm
+            
+            % input parser
+            p = inputParser;
+            
+            addRequired(p, 'obj');
+            addOptional(p, 'window_width', []);
+            
+            parse(p, obj, varargin{:});
+            
+            obj = p.Results.obj;
+            width = p.Results.window_width;
+            
+            % check input parameters
+            if ~isempty(width)
+                w = round(width/2);
+                obj.window_width = width;
+                win_width = width;
+            else
+                w = round(obj.window_width/2);
+                win_width = obj.window_width;
+            end
+            N = obj.numpnts;
+            t = zeros(length(obj.x_data),1);
+            
+            % calculate theta
+            f = NaN(win_width-1, N);
+            g = NaN(win_width-1, N);
+            ydat = NaN(win_width-1, N);
+            RSS_g = NaN(1, N);
+            RSS_f = NaN(1, N);
+            indices = NaN(2, N);
+            
+            m = NaN(1, N);
+            m_0 = NaN(1, N);
+            t_l = NaN(1, N);
+            t_r = NaN(1, N);
+            t_0 = NaN(1, N);
+            
+%             max_window_moves = floor(N/(2*w));
+            for i = 1+w:win_width/obj.step_refinement:N % 1+w:N-w
+                
+%                 % calculate needed parameters
+%                 N_half = round(N/2);
+                xvec = obj.x_data;
+                yvec = obj.y_conv;
+%                 
+%                 % sum over i-w to i+w-1 of x_j*y_j
+%                 a = i-w;
+%                 b = i+w-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N
+%                     b = N;
+%                 end
+%                 x_y = StepFinder.msfSum(xvec, yvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+%                 
+%                 % sum over i-w to i+w-1 of x_j
+%                 a = i-w;
+%                 b = i+w-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N
+%                     b = N;
+%                 end
+%                 x = StepFinder.msfSum(xvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+%                 
+%                 % sum over i-w to i+w-1 of y_j
+%                 a = i-w;
+%                 b = i+w-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N
+%                     b = N;
+%                 end
+%                 y = StepFinder.msfSum(yvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+%                 
+%                 % sum over i-w to i+w-1 of x_j^2
+%                 a = i-w;
+%                 b = i+w-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N
+%                     b = N;
+%                 end
+%                 x_square = StepFinder.msfSum(xvec, yvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+%                 
+%                 % sum over i-w to i-1 of x_j
+%                 a = i-w;
+%                 b = i-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N
+%                     b = N;
+%                 end
+%                 x_1 = StepFinder.msfSum(xvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+%                 
+%                 % sum over i-w to i-1 of y_j
+%                 a = i-w;
+%                 b = i-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N
+%                     b = N;
+%                 end
+%                 y_1 = StepFinder.msfSum(yvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+%                 
+%                 % sum over i to i+w-1 of x_j
+%                 a = i;
+%                 b = i+w-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N
+%                     b = N;
+%                 end
+%                 x_2 = StepFinder.msfSum(xvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+%                 
+%                 % sum over i to i+w-1 of y_j
+%                 a = i;
+%                 b = i+w-1;
+%                 if a < 1
+%                     a = 1;
+%                 end
+%                 if b > N 
+%                     b = N;
+%                 end
+%                 y_2 = StepFinder.msfSum(yvec,...
+%                     'start_index', a,...
+%                     'stop_index', b);
+                
+%                 n = win_width;
+%                 n_half = win_width/2;
+%                 m_i = (n_half*x_y-x_1*y_1-x_2*y_2)/(n_half*x_square-x_1^2-x_2^2);
+%                 m_i_0 = (n*x_y-x-y)/(n*x_square-x^2);
+%                 t_i_l = (1/n_half)*(y_1-m_i*x_1);
+%                 t_i_r = (1/n_half)*(y_2-m_i*x_2);
+%                 t_i_0 = (1/n)*(y-m_i_0*x);
+                
+                a = i-w;
+                b = i+w-1;
+                if a < 1
+                    w = i-1;
+                    a = i-w;
+                    b = i+w_1;
+                end
+                if b > N
+                    w = N-i+1;
+                    a = i-w;
+                    b = N-i+1;
+                end
+
+                xfit = xvec(a:b);
+                yfit = yvec(a:b);
+                
+                aux_ones = ones(round((b-a)/2),1);
+                aux_zeros = zeros(round((b-a)/2),1);
+                c_left = vertcat(aux_ones, aux_zeros);
+                c_right = vertcat(aux_zeros, aux_ones);
+                
+                coeffs_piecewise = [xfit c_left c_right]\yfit;
+                m_i = coeffs_piecewise(1);
+                t_i_l = coeffs_piecewise(2);
+                t_i_r = coeffs_piecewise(3);
+                
+                coeffs_global = [xfit vertcat(aux_ones, aux_ones)]\yfit;
+                m_i_0 = coeffs_global(1);
+                t_i_0 = coeffs_global(2);
+
+                m(1,i) = m_i;
+                m_0(1,i) = m_i_0;
+                t_l(1,i) = t_i_l;
+                t_r(1,i) = t_i_r;
+                t_0(1,i) = t_i_0;
+                
+                a = i-w;
+                b = i+w-1;
+                c = win_width-1;
+                if a < 1
+                    a = 1;
+                end
+                if b > N
+                    b = N;
+                end
+                
+                f_i = zeros(c,1);
+                for j = 1:c
+                    if j < w
+                        try
+                            f_i(j) = m_i*xvec(j+a)+t_i_l;
+                        catch
+                        end
+                    else
+                        try
+                            f_i(j) = m_i*xvec(j+a)+t_i_r;
+                        catch 
+                        end
+                    end
+                end
+                
+                g_i = zeros(c,1);
+                for j = 1:c
+                    try
+                        g_i(j) = m_i_0*xvec(j+a)+t_i_0;
+                    catch
+                    end
+                end
+                
+                y_i = zeros(c,1);
+                for j = 1:c
+                    try
+                        y_i(j) = yvec(j+a);
+                    catch
+                    end
+                end
+                
+                % calculation of theta
+                RSS_gi = StepFinder.msfSum((g_i-y_i).^2);
+                RSS_fi = StepFinder.msfSum((f_i-y_i).^2);
+                t(i) = (RSS_gi-RSS_fi)*(t_i_r-t_i_l);
+                
+                RSS_g(1,i) = RSS_gi;
+                RSS_f(1,i) = RSS_fi;
+                g(:,i) = g_i;
+                f(:,i) = f_i;
+                ydat(:,i) = y_i;
+                indices(1, i) = a;
+                indices(2, i) = b;
+                
+                disp(num2str(i))
+                
+            end
+            
+            mask = isnan(m);
+            obj.step_results.m = m(~mask);
+%             m = m(~mask);
+%             obj.step_results.m = reshape(m, 1, round(N/win_width));
+            
+            mask = isnan(m_0);
+            obj.step_results.m_0 = m_0(~mask);
+%             m_0 = m_0(~mask);
+%             obj.step_results.m_0 = reshape(m_0, 1, round(N/win_width));
+            
+            mask = isnan(t_l);
+            obj.step_results.t_l = t_l(~mask);
+%             t_l = t_l(~mask);
+%             obj.step_results.t_l = reshape(t_l, 1, round(N/win_width));
+            
+            mask = isnan(t_r);
+            obj.step_results.t_r = t_r(~mask);
+%             t_r = t_r(~mask);
+%             obj.step_results.t_r = reshape(t_r, 1, round(N/win_width));
+            
+            mask = isnan(t_0);
+            obj.step_results.t_0 = t_0(~mask);
+%             t_0 = t_0(~mask);
+%             obj.step_results.t_0 = reshape(t_0, 1, round(N/win_width));
+            
+            mask = isnan(g);
+            g(:,mask(1,:)) = [];
+            obj.step_results.g = g;
+%             obj.step_results.g = reshape(g, win_width-1, round(N/win_width));
+            
+            mask = isnan(f);
+            f(:,mask(1,:)) = [];
+            obj.step_results.f = f;
+%             f = f(~mask);
+%             obj.step_results.f = reshape(f, win_width-1, round(N/win_width));
+            
+            mask = isnan(ydat);
+            ydat(:,mask(1,:)) = [];
+            obj.step_results.y = ydat;
+%             ydat = ydat(~mask);
+%             obj.step_results.y = reshape(ydat, win_width-1, round(N/win_width));
+            
+            mask = isnan(indices);
+            indices(:,mask(1,:)) = [];
+            obj.step_results.indices = indices;
+%             indices = indices(~mask);
+%             obj.step_results.indices = reshape(indices, 2, round(N/win_width));
+            
+            mask = isnan(RSS_g);
+            obj.step_results.RSS_g = RSS_g(~mask);
+%             RSS_g = RSS_g(~mask);
+%             obj.step_results.RSS_g = reshape(RSS_g, 1, round(N/win_width));
+            
+            mask = isnan(RSS_f);
+            obj.step_results.RSS_f = RSS_f(~mask);
+%             RSS_f = RSS_f(~mask);
+%             obj.step_results.RSS_f = reshape(RSS_f, 1, round(N/win_width));
+            
+            obj.theta = t./max(t);
+            % calculate theta
+            
+        end % StepSearch
         
     end % normal methods
     
@@ -142,17 +455,131 @@ classdef StepFinder
             obj.smoothing_window_width = window_width;
         end % set.smoothing_window_withd
         
+%         function obj = set.window_width(obj, width)
+%             
+%             if mod(width, 2)
+%                 ME = MException('StepFinder:ivalidInput', 'input for "window_width" must be even');
+%                 throw(ME);
+%             end
+%             obj.window_width = width;
+%             
+%         end
+        
+        function val = get.y_conv(obj)
+            if isempty(obj.y_conv)
+                val = obj.y_data;
+            else
+                val = obj.y_conv;
+            end
+        end % get.y_conv
+        
     end % setter/getter methods
+    
+    methods % getter for dependent properties
+        
+    end
+    
+    methods(Static)
+
+        function kernel = gaussian_kernel(width, sigma)
+            
+            vec = linspace(-(width-1)/2, (width-1)/2, width);
+            gvec = exp(-vec.^2./(2*sigma)^2);
+            
+            kernel = gvec./sum(gvec);
+        end % gaussian_kernel
+        
+        function s = msfSum(inVec1, varargin)
+
+            % input parser
+            p = inputParser;
+
+            validVec = @(x) isvector(x) && isnumeric(x);
+
+            addRequired(p, 'inVec1', validVec);
+            addOptional(p, 'inVec2', []);
+            addParameter(p, 'start_index', 1);
+            addParameter(p, 'stop_index', []);
+
+            parse(p, inVec1, varargin{:});
+
+            inVec1 = p.Results.inVec1;
+            inVec2 = p.Results.inVec2;
+            start_index = p.Results.start_index;
+            stop_index = p.Results.stop_index;
+
+            % check input parameter
+            if ~isempty(inVec2)
+                if length(inVec1) ~= length(inVec2)
+                    ME = MException('smfSum:invalidInput', 'input vectors are not the same size');
+                    throw(ME);
+                end
+            end
+            if isempty(stop_index)
+                stop_index = length(inVec1);
+            end
+
+            % calculate sum
+            vec1 = inVec1(start_index:stop_index);
+            if ~isempty(inVec2)
+                vec2 = inVec2(start_index:stop_index);
+            else
+                vec2 = ones(length(vec1), 1);
+            end
+
+            warning('off');
+            [vec1, vec2] = prepareCurveData(vec1, vec2);
+            warning('on');
+            s = vec1'*vec2;
+
+        end % sum
+        
+    end % static methods
     
 end % classdef
 
-function varargout = gaussian_kernel(filter_width, sigma)
-    vec = linspace(-(filter_width-1)/2, (filter_width-1)/2, filter_width);
-    gvec = exp(-vec.^2./(2*sigma)^2);
-    kernel = gvec./sum(gvec);
-    
-    varargout{1} = kernel;
-    varargout{2} = gvec;
-    varargout{3} = vec;
-end % gaussain_kernel
-
+%% helper functions
+% function s = msfSum(inVec1, varargin)
+% 
+%     % input parser
+%     p = inputParser;
+%     
+%     validVec = @(x) isvector(x) && isnumeric(x);
+%     
+%     addRequired(p, 'inVec1', validVec);
+%     addOptional(p, 'inVec2', []);
+%     addParameter(p, 'start_index', 1);
+%     addParameter(p, 'stop_index', []);
+%     
+%     parse(p, inVec1, varargin{:});
+%     
+%     inVec1 = p.Results.inVec1;
+%     inVec2 = p.Results.inVec2;
+%     start_index = p.Results.start_index;
+%     stop_index = p.Results.stop_index;
+%     
+%     % check input parameter
+%     if ~isempty(inVec2)
+%         if length(inVec1) ~= length(inVec2)
+%             ME = MException('smfSum:invalidInput', 'input vectors are not the same size');
+%             throw(ME);
+%         end
+%     end
+%     if isempty(stop_index)
+%         stop_index = length(inVec1);
+%     end
+%     
+%     % calculate sum
+%     vec1 = inVec1(start_index:stop_index);
+%     if ~isempty(inVec2)
+%         vec2 = inVec2(start_index:stop_index);
+%     else
+%         vec2 = ones(length(vec1), 1);
+%     end
+%     
+%     warning('off');
+%     [vec1, vec2] = prepareCurveData(vec1, vec2);
+%     warning('on');
+%     s = vec1'*vec2;
+% 
+% end % sum
