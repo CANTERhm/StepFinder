@@ -166,125 +166,12 @@ classdef StepFinder
             t_r = NaN(1, N);
             t_0 = NaN(1, N);
             
-%             max_window_moves = floor(N/(2*w));
-            for i = 1+w:win_width/obj.step_refinement:N % 1+w:N-w
+            for i = 1+w:win_width/obj.step_refinement:N
                 
-%                 % calculate needed parameters
-%                 N_half = round(N/2);
+                % calculate needed parameters
                 xvec = obj.x_data;
                 yvec = obj.y_conv;
-%                 
-%                 % sum over i-w to i+w-1 of x_j*y_j
-%                 a = i-w;
-%                 b = i+w-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
-%                 x_y = StepFinder.msfSum(xvec, yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum over i-w to i+w-1 of x_j
-%                 a = i-w;
-%                 b = i+w-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
-%                 x = StepFinder.msfSum(xvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum over i-w to i+w-1 of y_j
-%                 a = i-w;
-%                 b = i+w-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
-%                 y = StepFinder.msfSum(yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum over i-w to i+w-1 of x_j^2
-%                 a = i-w;
-%                 b = i+w-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
-%                 x_square = StepFinder.msfSum(xvec, yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum over i-w to i-1 of x_j
-%                 a = i-w;
-%                 b = i-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
-%                 x_1 = StepFinder.msfSum(xvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum over i-w to i-1 of y_j
-%                 a = i-w;
-%                 b = i-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
-%                 y_1 = StepFinder.msfSum(yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum over i to i+w-1 of x_j
-%                 a = i;
-%                 b = i+w-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
-%                 x_2 = StepFinder.msfSum(xvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum over i to i+w-1 of y_j
-%                 a = i;
-%                 b = i+w-1;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N 
-%                     b = N;
-%                 end
-%                 y_2 = StepFinder.msfSum(yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-                
-%                 n = win_width;
-%                 n_half = win_width/2;
-%                 m_i = (n_half*x_y-x_1*y_1-x_2*y_2)/(n_half*x_square-x_1^2-x_2^2);
-%                 m_i_0 = (n*x_y-x-y)/(n*x_square-x^2);
-%                 t_i_l = (1/n_half)*(y_1-m_i*x_1);
-%                 t_i_r = (1/n_half)*(y_2-m_i*x_2);
-%                 t_i_0 = (1/n)*(y-m_i_0*x);
+
                 
                 a = i-w;
                 b = i+w-1;
