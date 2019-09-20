@@ -269,64 +269,43 @@ classdef StepFinder
             
             mask = isnan(m);
             obj.step_results.m = m(~mask);
-%             m = m(~mask);
-%             obj.step_results.m = reshape(m, 1, round(N/win_width));
             
             mask = isnan(m_0);
             obj.step_results.m_0 = m_0(~mask);
-%             m_0 = m_0(~mask);
-%             obj.step_results.m_0 = reshape(m_0, 1, round(N/win_width));
             
             mask = isnan(t_l);
             obj.step_results.t_l = t_l(~mask);
-%             t_l = t_l(~mask);
-%             obj.step_results.t_l = reshape(t_l, 1, round(N/win_width));
             
             mask = isnan(t_r);
             obj.step_results.t_r = t_r(~mask);
-%             t_r = t_r(~mask);
-%             obj.step_results.t_r = reshape(t_r, 1, round(N/win_width));
             
             mask = isnan(t_0);
             obj.step_results.t_0 = t_0(~mask);
-%             t_0 = t_0(~mask);
-%             obj.step_results.t_0 = reshape(t_0, 1, round(N/win_width));
             
             mask = isnan(g);
             g(:,mask(1,:)) = [];
             obj.step_results.g = g;
-%             obj.step_results.g = reshape(g, win_width-1, round(N/win_width));
             
             mask = isnan(f);
             f(:,mask(1,:)) = [];
             obj.step_results.f = f;
-%             f = f(~mask);
-%             obj.step_results.f = reshape(f, win_width-1, round(N/win_width));
             
             mask = isnan(ydat);
             ydat(:,mask(1,:)) = [];
             obj.step_results.y = ydat;
-%             ydat = ydat(~mask);
-%             obj.step_results.y = reshape(ydat, win_width-1, round(N/win_width));
             
             mask = isnan(indices);
             indices(:,mask(1,:)) = [];
             obj.step_results.indices = indices;
-%             indices = indices(~mask);
-%             obj.step_results.indices = reshape(indices, 2, round(N/win_width));
             
             mask = isnan(RSS_g);
             obj.step_results.RSS_g = RSS_g(~mask);
-%             RSS_g = RSS_g(~mask);
-%             obj.step_results.RSS_g = reshape(RSS_g, 1, round(N/win_width));
             
             mask = isnan(RSS_f);
             obj.step_results.RSS_f = RSS_f(~mask);
-%             RSS_f = RSS_f(~mask);
-%             obj.step_results.RSS_f = reshape(RSS_f, 1, round(N/win_width));
             
-            obj.theta = t./max(t);
             % calculate theta
+            obj.theta = t./max(t);
             
         end % StepSearch
         
