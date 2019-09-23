@@ -1,6 +1,38 @@
 classdef StepFinder
     % STEPFINDER find steps in afm force vs. time curves using the
     % MSF-Algorithm from J. Opfer et al. , 2012 
+    %
+    % Usage:
+    %   1. Create a StepFinder-object:
+    %       finder = StepFinder(xData, yData);
+    %
+    %   2. Smooth data with a gaussian Kernel
+    %       finder = finder.SmoothData()
+    %
+    %   3. Start the Search for Steps
+    %       finder = finder.StartSearch()
+    %
+    %   4. Recalculate found Steps for better accuracy
+    %       finder = finder.RecalculateStep()
+    %
+    % Properties:
+    %   - x_data: vector of the indipendent variable
+    %   - y_data: vector of the dependent variable (measured Data)
+    %   - y_conv: smoothed y_data-vector (See SmoothData for more details)
+    %   - step_indices: 1xn vector containing the indices of found steps
+    %   - peak_threshold: threshold for determining that a peak in the
+    %       Theta-vector (also called significance) represents a Step in the Curve
+    %   - window_width: determines the moving step fit window width 
+    %   - step_refinement: only practicable, if someone wanna scale the
+    %       steps determined by window_width by this factor
+    %   - numpnts: read only; represents the length of x/y_data
+    %   - smoothing_sigma: sigma value for gaussian kernel
+    %   - smoothing_window_with: determines the width of the gaussain
+    %       kernel
+    %   - step_results: Structure, containing the results of StepSeach
+    %   - recalculate_step: Structure, containing the results of
+    %       RecalculateStep
+    %   
     %   
     % Copyright (C) 2019  Julian Blaser
     %
@@ -20,19 +52,18 @@ classdef StepFinder
     % along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
     
     properties
-        path % file path to valid afm-txt-curve
         x_data % data-vector of the indipendend variable
         y_data % data-vector of the dependend variable
         y_conv % smoothed y_data
         theta = []% vector of RSS values
-        step_indices = []; % indices of steps within the parsed data
-        peak_threshold = 0.5;
+        step_indices = [] % indices of steps within the parsed data
+        peak_threshold = 0.5
         window_width % width of the moving window
-        step_refinement
+        step_refinement = 1
         numpnts % number of data-points within x/y-data
         smoothing_sigma % standard deviation of gaussion smoothing 
         smoothing_window_width % window withd of gaussian smoothing
-        step_results
+        step_results = struct();
         recalculate_step = struct()
     end % properties
        
@@ -45,9 +76,9 @@ classdef StepFinder
             
             addRequired(p, 'x_data');
             addRequired(p, 'y_data');
-            addParameter(p, 'window_width', 30);
+            addParameter(p, 'window_width', 300);
             addParameter(p, 'step_refinement', 1);
-            addParameter(p, 'smoothing_sigma', 5);
+            addParameter(p, 'smoothing_sigma', 3);
             addParameter(p, 'smoothing_window_width',50);
             
             parse(p, varargin{:});
@@ -156,12 +187,6 @@ classdef StepFinder
             t = zeros(length(obj.x_data),1);
             
             % calculate theta
-%             f = NaN(win_width, N);
-%             g = NaN(win_width, N);
-%             ydat = NaN(win_width, N);
-%             RSS_g = NaN(1, N);
-%             RSS_f = NaN(1, N);
-%             indices = NaN(2, N);
             obj.step_results.RSS_g = [];
             obj.step_results.RSS_f = [];
             obj.step_results.g = [];
@@ -169,79 +194,12 @@ classdef StepFinder
             obj.step_results.indices = [];
             obj.step_results.theta = [];
             
-%             m = NaN(1, N);
-%             m_0 = NaN(1, N);
-%             t_l = NaN(1, N);
-%             t_r = NaN(1, N);
-%             t_0 = NaN(1, N);
-            
             for i = 1+w:win_width/obj.step_refinement:N
                 
                 % calculate needed parameters
                 xvec = obj.x_data;
                 yvec = obj.y_conv;
-                
-%                 % sum from i-w to i+w-1 over xj*yj
-%                 a = i-w;
-%                 b = i+w-1;
-%                 if b > N
-%                     w = N-i+1;
-%                     a = i-w;
-%                     b = i+w-1;
-%                 end
-%                 x_y = StepFinder.msfSum(xvec, yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum from i-w to i+w-1 over x_j^2
-%                 a = i-w;
-%                 b = i+w-1;
-%                 if b > N
-%                     w = N-i+1;
-%                     a = i-w;
-%                     b = i+w-1;
-%                 end
-%                 x_square = StepFinder.msfSum(xvec, xvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum from i-w to i-1 over xj
-%                 a = i-w;
-%                 b = i-1;
-%                 x_l = StepFinder.msfSum(xvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum from i-w to i-1 over yj
-%                 a = i-w;
-%                 b = i-1;
-%                 y_l = StepFinder.msfSum(yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum from i to i+w-1 over xj
-%                 a = i;
-%                 b = i+w-1;
-%                 if b > N
-%                     w = N-i+1;
-%                     b = i+w-1;
-%                 end
-%                 x_r = StepFinder.msfSum(xvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 % sum from i to i+w-1 over yj
-%                 a = i;
-%                 b = i+w-1;
-%                 if b > N
-%                     w = N-i+1;
-%                     b = i+w-1;
-%                 end
-%                 y_r = StepFinder.msfSum(yvec,...
-%                     'start_index', a,...
-%                     'stop_index', b);
-%                 
-%                 
+               
                 a = i-w;
                 b = i+w-1;
                 if b > N
@@ -252,13 +210,7 @@ classdef StepFinder
 
                 xfit = xvec(a:b);
                 yfit = yvec(a:b);
-%                 N_i = length(xfit);
-%                 N_i_half = round(N_i/2); 
-                
-%                 m_i = (N_i_half*x_y-x_l*y_l-x_r*y_r)/(N_i_half*x_square-x_l^2-x_r^2);
-%                 t_i_l = (1/N_i_half)*(y_l-m_i*x_l);
-%                 t_i_r = (1/N_i_half)*(y_r-m_i*x_r);
-                
+
                 aux_ones = ones(round((b-a)/2),1);
                 aux_zeros = zeros(round((b-a)/2),1);
                 c_left = vertcat(aux_ones, aux_zeros);
@@ -272,26 +224,8 @@ classdef StepFinder
                 coeffs_global = [xfit vertcat(aux_ones, aux_ones)]\yfit;
                 m_i_0 = coeffs_global(1);
                 t_i_0 = coeffs_global(2);
-
-%                 m(1,i) = m_i;
-%                 m_0(1,i) = m_i_0;
-%                 t_l(1,i) = t_i_l;
-%                 t_r(1,i) = t_i_r;
-%                 t_0(1,i) = t_i_0;
-                
-%                 a = i-w;
-%                 b = i+w-1;
-%                 c = b-a;
                 c = win_width;
-%                 if a < 1
-%                     a = 1;
-%                 end
-%                 if b > N
-%                     b = N;
-%                 end
                 
-%                 [f_i, ~, t_i_l, t_i_r] = StepFinder.piecewiseLinearFit(xvec, yvec, a, b);
-%                 [g_i, ~, ~] = StepFinder.globalLinearFit(xvec, yvec, a, b);
                 f_i = zeros(c,1);
                 for j = 1:c
                     if j < w
@@ -335,55 +269,7 @@ classdef StepFinder
                 obj.step_results.f = [obj.step_results.f f_i];
                 obj.step_results.indices = [obj.step_results.indices [a; b]];
                 obj.step_results.theta = [obj.step_results.theta theta_calc];
-%                 RSS_g(1,i) = RSS_gi;
-%                 RSS_f(1,i) = RSS_fi;
-%                 g(:,i) = g_i;
-%                 f(:,i) = f_i;
-%                 ydat(:,i) = y_i;
-%                 indices(1, i) = a;
-%                 indices(2, i) = b;
-
-                % display the running index as progress reprot
-                fprintf('\nindex: %d\n', i);
-                
             end
-            
-%             mask = isnan(m);
-%             obj.step_results.m = m(~mask);
-%             
-%             mask = isnan(m_0);
-%             obj.step_results.m_0 = m_0(~mask);
-%             
-%             mask = isnan(t_l);
-%             obj.step_results.t_l = t_l(~mask);
-%             
-%             mask = isnan(t_r);
-%             obj.step_results.t_r = t_r(~mask);
-%             
-%             mask = isnan(t_0);
-%             obj.step_results.t_0 = t_0(~mask);
-            
-%             mask = isnan(g);
-%             g(:,mask(1,:)) = [];
-%             obj.step_results.g = g;
-%             
-%             mask = isnan(f);
-%             f(:,mask(1,:)) = [];
-%             obj.step_results.f = f;
-            
-%             mask = isnan(ydat);
-%             ydat(:,mask(1,:)) = [];
-%             obj.step_results.y = ydat;
-            
-%             mask = isnan(indices);
-%             indices(:,mask(1,:)) = [];
-%             obj.step_results.indices = indices;
-%             
-%             mask = isnan(RSS_g);
-%             obj.step_results.RSS_g = RSS_g(~mask);
-%             
-%             mask = isnan(RSS_f);
-%             obj.step_results.RSS_f = RSS_f(~mask);
             
             % delete first and last value, this are normally artefacts from
             % smoothing
@@ -424,7 +310,8 @@ classdef StepFinder
                 x_dir_2 = xfit(dir_border+1:end);
                 y_dir_1 = yfit(1:dir_border);
                 y_dir_2 = yfit(dir_border+1:end);
-
+                
+                warning('off')
                 coeffs = [x_dir_1 ones(length(x_dir_1),1)]\y_dir_1;
                 m_left = coeffs(1);
                 t_left = coeffs(2);
@@ -432,6 +319,7 @@ classdef StepFinder
                 coeffs = [x_dir_2 ones(length(x_dir_2))]\y_dir_2;
                 m_right = coeffs(1);
                 t_right = coeffs(2);
+                warning('on')
                 
                 y_fit_left = m_left.*x_dir_1+t_left;
                 y_fit_right = m_right.*x_dir_2+t_right;
@@ -447,7 +335,6 @@ classdef StepFinder
                     
                 for i = 1:round(width/2)
                     pos = steps(n)+(dir*i);
-%                     pos = steps(n)-w+i;
                     a = pos-w;
                     b = pos+w-1;
                     xfit = xdat(a:b);
@@ -499,13 +386,8 @@ classdef StepFinder
                     obj.recalculate_step.f = [obj.recalculate_step.f f];
                     obj.recalculate_step.g = [obj.recalculate_step.g g];
                     obj.recalculate_step.indices = [obj.recalculate_step.indices [a;b]];
-                    
-                    
-                    
-                    
-                    fprintf('\nrecalculation index: %d\n', i);
-                    
                 end
+                
                 t = abs(t);
                 t = t./max(t);
                 [~, locs] = findpeaks(t, 'MinPeakHeight', obj.peak_threshold);
@@ -535,15 +417,15 @@ classdef StepFinder
             obj.smoothing_window_width = window_width;
         end % set.smoothing_window_withd
         
-%         function obj = set.window_width(obj, width)
-%             
-%             if mod(width, 2)
-%                 ME = MException('StepFinder:ivalidInput', 'input for "window_width" must be even');
-%                 throw(ME);
-%             end
-%             obj.window_width = width;
-%             
-%         end
+        function obj = set.window_width(obj, width)
+            
+            if mod(width, 2)
+                ME = MException('StepFinder:ivalidInput', 'input for "window_width" must be even');
+                throw(ME);
+            end
+            obj.window_width = width;
+            
+        end
         
         function val = get.y_conv(obj)
             if isempty(obj.y_conv)
@@ -554,10 +436,6 @@ classdef StepFinder
         end % get.y_conv
         
     end % setter/getter methods
-    
-    methods % getter for dependent properties
-        
-    end
     
     methods(Static)
 
@@ -671,49 +549,3 @@ classdef StepFinder
     end % static methods
     
 end % classdef
-
-%% helper functions
-% function s = msfSum(inVec1, varargin)
-% 
-%     % input parser
-%     p = inputParser;
-%     
-%     validVec = @(x) isvector(x) && isnumeric(x);
-%     
-%     addRequired(p, 'inVec1', validVec);
-%     addOptional(p, 'inVec2', []);
-%     addParameter(p, 'start_index', 1);
-%     addParameter(p, 'stop_index', []);
-%     
-%     parse(p, inVec1, varargin{:});
-%     
-%     inVec1 = p.Results.inVec1;
-%     inVec2 = p.Results.inVec2;
-%     start_index = p.Results.start_index;
-%     stop_index = p.Results.stop_index;
-%     
-%     % check input parameter
-%     if ~isempty(inVec2)
-%         if length(inVec1) ~= length(inVec2)
-%             ME = MException('smfSum:invalidInput', 'input vectors are not the same size');
-%             throw(ME);
-%         end
-%     end
-%     if isempty(stop_index)
-%         stop_index = length(inVec1);
-%     end
-%     
-%     % calculate sum
-%     vec1 = inVec1(start_index:stop_index);
-%     if ~isempty(inVec2)
-%         vec2 = inVec2(start_index:stop_index);
-%     else
-%         vec2 = ones(length(vec1), 1);
-%     end
-%     
-%     warning('off');
-%     [vec1, vec2] = prepareCurveData(vec1, vec2);
-%     warning('on');
-%     s = vec1'*vec2;
-% 
-% end % sum

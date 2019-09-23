@@ -10,7 +10,7 @@ clamp_y = curve_data.Segment5.vDeflection;
 
 %% steps
 finder = StepFinder(clamp_x, clamp_y);
-finder.window_width = 500;
+finder.window_width = 300;
 finder.smoothing_sigma = 3;
 finder.peak_threshold = 0.5;
 finder.step_refinement = 1;
@@ -39,17 +39,19 @@ end
 
 figure()
 hold on
-plot(clamp_x, clamp_y);
-plot(clamp_x, finder.y_conv);
+plot(clamp_x, clamp_y, 'DisplayName', 'Measured Data');
+plot(clamp_x, finder.y_conv, 'DisplayName', 'Smoothed Data');
 scatter(t_x, t_y, 'Marker', 'o',...
     'MarkerFaceColor', 'red',...
     'MarkerEdgeColor', 'red',...
-    'SizeData', 20);
+    'SizeData', 20,...
+    'DisplayName', 'Assumed Step Coarse');
 
 scatter(t_x_2, t_y_2, 'Marker', 'o',...
     'MarkerFaceColor', 'green',...
     'MarkerEdgeColor', 'green',...
-    'SizeData', 20);
+    'SizeData', 20,...
+    'DisplayName','Assumed Step Recalculated');
 
 hold off
 grid on
