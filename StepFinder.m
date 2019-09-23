@@ -1,6 +1,38 @@
 classdef StepFinder
     % STEPFINDER find steps in afm force vs. time curves using the
     % MSF-Algorithm from J. Opfer et al. , 2012 
+    %
+    % Usage:
+    %   1. Create a StepFinder-object:
+    %       finder = StepFinder(xData, yData);
+    %
+    %   2. Smooth data with a gaussian Kernel
+    %       finder = finder.SmoothData()
+    %
+    %   3. Start the Search for Steps
+    %       finder = finder.StartSearch()
+    %
+    %   4. Recalculate found Steps for better accuracy
+    %       finder = finder.RecalculateStep()
+    %
+    % Properties:
+    %   - x_data: vector of the indipendent variable
+    %   - y_data: vector of the dependent variable (measured Data)
+    %   - y_conv: smoothed y_data-vector (See SmoothData for more details)
+    %   - step_indices: 1xn vector containing the indices of found steps
+    %   - peak_threshold: threshold for determining that a peak in the
+    %       Theta-vector (also called significance) represents a Step in the Curve
+    %   - window_width: determines the moving step fit window width 
+    %   - step_refinement: only practicable, if someone wanna scale the
+    %       steps determined by window_width by this factor
+    %   - numpnts: read only; represents the length of x/y_data
+    %   - smoothing_sigma: sigma value for gaussian kernel
+    %   - smoothing_window_with: determines the width of the gaussain
+    %       kernel
+    %   - step_results: Structure, containing the results of StepSeach
+    %   - recalculate_step: Structure, containing the results of
+    %       RecalculateStep
+    %   
     %   
     % Copyright (C) 2019  Julian Blaser
     %
@@ -20,7 +52,6 @@ classdef StepFinder
     % along with Foobar.  If not, see <http://www.gnu.org/licenses/>.
     
     properties
-        path % file path to valid afm-txt-curve
         x_data % data-vector of the indipendend variable
         y_data % data-vector of the dependend variable
         y_conv % smoothed y_data
@@ -405,10 +436,6 @@ classdef StepFinder
         end % get.y_conv
         
     end % setter/getter methods
-    
-    methods % getter for dependent properties
-        
-    end
     
     methods(Static)
 
