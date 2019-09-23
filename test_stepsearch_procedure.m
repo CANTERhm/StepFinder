@@ -21,7 +21,7 @@ plottools;
 
 %% calculate steps
 finder = StepFinder(clamp_x, clamp_y);
-finder.window_width = 30;
+finder.window_width = 50;
 finder.smoothing_sigma = 3;
 finder.step_refinement = 1;
 finder = finder.SmoothData();
@@ -38,41 +38,42 @@ RSS_g = finder.step_results.RSS_g;
 RSS_f = finder.step_results.RSS_f;
 f = finder.step_results.f;
 g = finder.step_results.g;
-y = finder.step_results.y;
+% y = finder.step_results.y;
 len = length(indices);
-% width = finder.window_width;
-% w = round(width/2);
-m = finder.step_results.m;
-m_0 = finder.step_results.m_0;
-t_l = finder.step_results.t_l;
-t_r = finder.step_results.t_r;
-t_0 = finder.step_results.t_0;
-yvec = finder.step_results.y;
-
-
-
-% lb1 = [t_x(indices(1,1)) t_x(indices(1,1))];
-% rb1 = [t_x(indices(2,1)) t_x(indices(2,1))];
-% f_l_1 = zeros(w,1);
-% f_r_1 = zeros(w,1);
-% x_l_1 = zeros(w,1);
-% x_r_1 = zeros(w,1);
-% g_i_1 = zeros(2*w,1);
-% x_g_1 = zeros(2*w,1);
+width = finder.window_width;
+w = round(width/2);
+% m = finder.step_results.m;
+% m_0 = finder.step_results.m_0;
+% t_l = finder.step_results.t_l;
+% t_r = finder.step_results.t_r;
+% t_0 = finder.step_results.t_0;
+% yvec = finder.step_results.y;
 
 a = indices(1,1);
 b = indices(2,1);
 
-width = b-a;
-w = round(width/2);
+% width = b-a;
+% w = round(width/2);
 
+xfit = clamp_x(a:b);
+yfit = f(:,1);
+yfit_global = g(:,1);
 mid = (w + a);
-f_l = f(1:w,1);
-f_r = f(w:end,1);
-x_l = clamp_x(a:w-1+a)';
-x_r = clamp_x(a+w-1:b-1)';
-g_i = g(:,1);
-x_g = clamp_x(a:b-1)';
+
+x_l = xfit(1:round(length(xfit))/2);
+x_r = xfit(round(length(xfit))/2+1:end);
+x_g = xfit;
+f_l = yfit(1:round(length(yfit))/2);
+f_r = yfit(round(length(yfit))/2+1:end);
+g_i = yfit_global;
+
+% mid = (w + a);
+% f_l = f(1:w,1);
+% f_r = f(w:end,1);
+% x_l = clamp_x(a:w-1+a)';
+% x_r = clamp_x(a+w-1:b-1)';
+% g_i = g(:,1);
+% x_g = clamp_x(a:b-1)';
 
 lb_obj = plot(ax1, [clamp_x(a) clamp_x(a)], [min(clamp_y) max(clamp_y)], 'k-',...
     'DisplayName', 'Left Border');
@@ -84,16 +85,26 @@ f_l_obj = plot(ax1, x_l, f_l, 'r-', 'DisplayName', 'Left Piecewise Linear');
 f_r_obj = plot(ax1, x_r, f_r, 'r-', 'DisplayName', 'Right Piecewise Linear');
 g_obj = plot(ax1, x_g, g_i, 'b-', 'DisplayName', 'Global Windwo Linear');
 
-for i = 1:len
+for i = 430:len
     a = indices(1,i);
     b = indices(2,i);
+    xfit = clamp_x(a:b);
+    yfit = f(:,i);
+    yfit_global = g(:,i);
     mid = (w + a);
-    f_l = f(1:w,i);
-    f_r = f(w:end,i);
-    x_l = clamp_x(a:w-1+a)';
-    x_r = clamp_x(a+w-1:b-1)';
-    g_i = g(:,i);
-    x_g = clamp_x(a:b-1)';
+    
+    x_l = xfit(1:round(length(xfit))/2);
+    x_r = xfit(round(length(xfit))/2+1:end);
+    x_g = xfit;
+    f_l = yfit(1:round(length(yfit))/2);
+    f_r = yfit(round(length(yfit))/2+1:end);
+    g_i = yfit_global;
+%     f_l = f(1:w,i);
+%     f_r = f(w:end,i);
+%     x_l = clamp_x(a:w-1+a)';
+%     x_r = clamp_x(a+w-1:b-1)';
+%     g_i = g(:,i);
+%     x_g = clamp_x(a:b-1)';
     
     try
         lb_obj.XData = [clamp_x(a) clamp_x(a)];
@@ -101,7 +112,7 @@ for i = 1:len
     end
     
     try
-        rb_obj.XData = [clamp_x(b-1) clamp_x(b-1)];
+        rb_obj.XData = [clamp_x(b) clamp_x(b)];
     catch
     end
     
